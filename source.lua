@@ -1,5 +1,5 @@
 -- ====================================================================
---  NACK TD HUB - OFFICIAL SOURCE (POTASSIUM PC VERSION)
+--  NACK TD HUB - OFFICIAL SOURCE (BUILT-IN PC BACKUP FRAMEWORK)
 -- ====================================================================
 -- GitHub URL: https://raw.githubusercontent.com/nxdklx465/Nack-TD-Scripts/refs/heads/main/source.lua
 
@@ -8,52 +8,266 @@ if not game:IsLoaded() then
 end
 task.wait(0.2)
 
--- 1. ดาวน์โหลดคลังหน้าจอ Orion UI มาตรฐานสำหรับ PC (มีระบบค้นหาลิงก์สำรองกันล่ม)
-local OrionLib = nil
-local UI_URLs = {
-    "https://raw.githubusercontent.com/shlexware/Orion/main/source",
-    "https://raw.githubusercontent.com/jensonhirst/OSM/main/TonguriHub/Source/Orion.lua",
-    "https://raw.githubusercontent.com/bloodball/-Aimbot-v2/main/orion.lua",
-    "https://raw.githubusercontent.com/oyunfirmasi/Roblox/main/Orion.lua"
-}
-
-for i, url in ipairs(UI_URLs) do
-    local loadSuccess, result = pcall(function()
-        return loadstring(game:HttpGet(url))()
-    end)
-    
-    if loadSuccess and typeof(result) == "table" and result.MakeWindow then
-        OrionLib = result
-        print("[Nack Hub PC] โหลดอินเตอร์เฟสสำเร็จจากคลังสำรองที่: " .. tostring(i))
-        break
-    else
-        warn("[Nack Hub PC Warning] ลิงก์ที่ " .. tostring(i) .. " ขัดข้อง กำลังลองลิงก์ถัดไป...")
-    end
-end
-
--- ดักบั๊กกรณีร้ายแรงที่สุด ถ้าลิงก์เว็บนอกล่มหมดจริง ๆ ให้เตือนผู้ใช้บนหน้าจอ PC
-if not OrionLib then
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "Nack TD Hub Error",
-        Text = "ไม่สามารถโหลดคลังสคริปต์จาก GitHub ได้ชั่วคราว กรุณาลองใหม่อีกครั้ง!",
-        Duration = 10
-    })
-    return
-end
-
--- 2. เริ่มสร้างหน้าต่างเมนูหลักของ Orion UI สำหรับ PC
-local Window = OrionLib:MakeWindow({
-    Name = "Nack TD Hub (Ultimate Edition - PC)", 
-    HidePremium = false, 
-    SaveConfig = true, 
-    ConfigFolder = "NackTD_PC_Ultimate"
-})
-
--- 3. ประกาศตัวแปรระบบและเน็ตเวิร์กของเกม
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
+-- 🛠️ 1. ปลดล็อกระบบวาดหน้าต่างอิสระ (ฝังลงในสคริปต์โดยตรงกันลิงก์ล่ม 100%)
+local OrionLib = {}
+
+function OrionLib:Init()
+    print("[Nack Hub PC] Built-in Interface System Started Successfully!")
+end
+
+function OrionLib:MakeWindow(config)
+    local CoreGui = game:GetService("CoreGui")
+    local TargetParent = nil
+    
+    -- ตรวจสอบสิทธิ์การเข้าถึงโฟลเดอร์แสดงผลบน PC
+    local success, _ = pcall(function() local test = CoreGui.Name end)
+    if success then
+        TargetParent = CoreGui
+    else
+        TargetParent = LocalPlayer:WaitForChild("PlayerGui", 10)
+    end
+    
+    -- ลบหน้าต่างเก่าที่ค้างอยู่ป้องกันการซ้อนทับ
+    if TargetParent:FindFirstChild("NackHubPC_UI") then
+        TargetParent["NackHubPC_UI"]:Destroy()
+    end
+    
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "NackHubPC_UI"
+    ScreenGui.Parent = TargetParent
+    ScreenGui.ResetOnSpawn = false
+    
+    -- โครงสร้างหน้าต่างเมนูหลักสีดำสไตล์ PC
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Size = UDim2.new(0, 550, 0, 340)
+    MainFrame.Position = UDim2.new(0.5, -275, 0.5, -170)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Active = true
+    MainFrame.Draggable = true
+    MainFrame.Parent = ScreenGui
+    
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 6)
+    UICorner.Parent = MainFrame
+    
+    -- ส่วนหัวของหน้าต่าง (Top Bar)
+    local TopBar = Instance.new("Frame")
+    TopBar.Size = UDim2.new(1, 0, 0, 42)
+    TopBar.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+    TopBar.BorderSizePixel = 0
+    TopBar.Parent = MainFrame
+    
+    local TopCorner = Instance.new("UICorner")
+    TopCorner.CornerRadius = UDim.new(0, 6)
+    TopCorner.Parent = TopBar
+    
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, -50, 1, 0)
+    Title.Position = UDim2.new(0, 15, 0, 0)
+    Title.BackgroundTransparency = 1
+    Title.Text = config.Name or "Nack TD Hub (PC Edition)"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.TextSize = 15
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.Font = Enum.Font.SourceSansBold
+    Title.Parent = TopBar
+    
+    -- ปุ่มปิดหน้าต่าง (Close Button)
+    local CloseBtn = Instance.new("TextButton")
+    CloseBtn.Size = UDim2.new(0, 35, 0, 35)
+    CloseBtn.Position = UDim2.new(1, -40, 0, 4)
+    CloseBtn.BackgroundTransparency = 1
+    CloseBtn.Text = "✕"
+    CloseBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+    CloseBtn.TextSize = 16
+    CloseBtn.Font = Enum.Font.SourceSansBold
+    CloseBtn.Parent = TopBar
+    CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+    
+    -- แถบเลือกหมวดหมู่ด้านซ้าย (Tabs Sidebar)
+    local Sidebar = Instance.new("Frame")
+    Sidebar.Size = UDim2.new(0, 140, 1, -42)
+    Sidebar.Position = UDim2.new(0, 0, 0, 42)
+    Sidebar.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+    Sidebar.BorderSizePixel = 0
+    Sidebar.Parent = MainFrame
+    
+    local SideLayout = Instance.new("UIListLayout")
+    SideLayout.Parent = Sidebar
+    SideLayout.Padding = UDim.new(0, 4)
+    
+    -- พื้นที่แสดงเนื้อหาด้านขวา (Content View)
+    local Container = Instance.new("Frame")
+    Container.Size = UDim2.new(1, -140, 1, -42)
+    Container.Position = UDim2.new(0, 140, 0, 42)
+    Container.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
+    Container.BorderSizePixel = 0
+    Container.Parent = MainFrame
+    
+    local windowEngine = {}
+    local totalTabs = 0
+    
+    function windowEngine:MakeTab(tabConfig)
+        totalTabs = totalTabs + 1
+        local currentTabNum = totalTabs
+        
+        local TabButton = Instance.new("TextButton")
+        TabButton.Size = UDim2.new(1, -10, 0, 36)
+        TabButton.Position = UDim2.new(0, 5, 0, 0)
+        TabButton.BackgroundColor3 = currentTabNum == 1 and Color3.fromRGB(35, 35, 35) or Color3.fromRGB(24, 24, 24)
+        TabButton.Text = "  " .. tabConfig.Name
+        TabButton.TextColor3 = currentTabNum == 1 and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(160, 160, 160)
+        TabButton.TextXAlignment = Enum.TextXAlignment.Left
+        TabButton.Font = Enum.Font.SourceSansBold
+        TabButton.TextSize = 14
+        TabButton.Parent = Sidebar
+        
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 4)
+        btnCorner.Parent = TabButton
+        
+        local TabPage = Instance.new("ScrollingFrame")
+        TabPage.Size = UDim2.new(1, -20, 1, -20)
+        TabPage.Position = UDim2.new(0, 10, 0, 10)
+        TabPage.BackgroundTransparency = 1
+        TabPage.CanvasSize = UDim2.new(0, 0, 0, 1000)
+        TabPage.ScrollBarThickness = 4
+        TabPage.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 60)
+        TabPage.Visible = (currentTabNum == 1)
+        TabPage.Parent = Container
+        
+        local pageLayout = Instance.new("UIListLayout")
+        pageLayout.Parent = TabPage
+        pageLayout.Padding = UDim.new(0, 8)
+        
+        TabButton.MouseButton1Click:Connect(function()
+            for _, child in pairs(Container:GetChildren()) do
+                if child:IsA("ScrollingFrame") then child.Visible = false end
+            end
+            for _, btn in pairs(Sidebar:GetChildren()) do
+                if btn:IsA("TextButton") then
+                    btn.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+                    btn.TextColor3 = Color3.fromRGB(160, 160, 160)
+                end
+            end
+            TabPage.Visible = true
+            TabButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+            TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end)
+        
+        local tabEngine = {}
+        
+        -- ระบบปุ่มเปิด/ปิด (Toggle Object)
+        function tabEngine:AddToggle(toggleConfig)
+            local ToggleBox = Instance.new("Frame")
+            ToggleBox.Size = UDim2.new(1, 0, 0, 42)
+            ToggleBox.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+            ToggleBox.Parent = TabPage
+            
+            local boxCorner = Instance.new("UICorner")
+            boxCorner.CornerRadius = UDim.new(0, 4)
+            boxCorner.Parent = ToggleBox
+            
+            local Label = Instance.new("TextLabel")
+            Label.Size = UDim2.new(0.7, 0, 1, 0)
+            Label.Position = UDim2.new(0, 12, 0, 0)
+            Label.BackgroundTransparency = 1
+            Label.Text = toggleConfig.Name
+            Label.TextColor3 = Color3.fromRGB(230, 230, 230)
+            Label.TextXAlignment = Enum.TextXAlignment.Left
+            Label.Font = Enum.Font.SourceSans
+            Label.TextSize = 14
+            Label.Parent = ToggleBox
+            
+            local StateIndicator = Instance.new("TextButton")
+            StateIndicator.Size = UDim2.new(0, 50, 0, 24)
+            StateIndicator.Position = UDim2.new(1, -62, 0.5, -12)
+            StateIndicator.BackgroundColor3 = toggleConfig.Default and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(231, 76, 60)
+            StateIndicator.Text = toggleConfig.Default and "ON" or "OFF"
+            StateIndicator.TextColor3 = Color3.fromRGB(255, 255, 255)
+            StateIndicator.Font = Enum.Font.SourceSansBold
+            StateIndicator.TextSize = 12
+            StateIndicator.Parent = ToggleBox
+            
+            local indCorner = Instance.new("UICorner")
+            indCorner.CornerRadius = UDim.new(0, 4)
+            indCorner.Parent = StateIndicator
+            
+            local isActive = toggleConfig.Default or false
+            StateIndicator.MouseButton1Click:Connect(function()
+                isActive = not isActive
+                StateIndicator.Text = isActive and "ON" or "OFF"
+                StateIndicator.BackgroundColor3 = isActive and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(231, 76, 60)
+                toggleConfig.Callback(isActive)
+            end)
+        end
+        
+        -- ระบบกล่องแสดงข้อความ/สเปาย์โค้ด (Paragraph Object)
+        function tabEngine:AddParagraph(pTitle, pDesc)
+            local ParaBox = Instance.new("Frame")
+            ParaBox.Size = UDim2.new(1, 0, 0, 90)
+            ParaBox.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+            ParaBox.Parent = TabPage
+            
+            local pBoxCorner = Instance.new("UICorner")
+            pBoxCorner.CornerRadius = UDim.new(0, 4)
+            pBoxCorner.Parent = ParaBox
+            
+            local ContentText = Instance.new("TextLabel")
+            ContentText.Size = UDim2.new(1, -20, 1, -14)
+            ContentText.Position = UDim2.new(0, 10, 0, 7)
+            ContentText.BackgroundTransparency = 1
+            ContentText.Text = "<b>" .. pTitle .. "</b>\n" .. pDesc
+            ContentText.TextColor3 = Color3.fromRGB(190, 190, 190)
+            ContentText.TextWrapped = true
+            ContentText.RichText = true
+            ContentText.TextXAlignment = Enum.TextXAlignment.Left
+            ContentText.TextYAlignment = Enum.TextYAlignment.Top
+            ContentText.Font = Enum.Font.SourceSans
+            ContentText.TextSize = 13
+            ContentText.Parent = ParaBox
+            
+            local paraEngine = {}
+            function paraEngine:Set(newText)
+                ContentText.Text = "<b>" .. pTitle .. "</b>\n" .. tostring(newText)
+            end
+            return paraEngine
+        end
+        
+        -- ระบบปุ่มกดปกติ (Button Object)
+        function tabEngine:AddButton(btnConfig)
+            local CustomBtn = Instance.new("TextButton")
+            CustomBtn.Size = UDim2.new(1, 0, 0, 38)
+            CustomBtn.BackgroundColor3 = Color3.fromRGB(41, 128, 185)
+            CustomBtn.Text = btnConfig.Name
+            CustomBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            CustomBtn.Font = Enum.Font.SourceSansBold
+            CustomBtn.TextSize = 14
+            CustomBtn.Parent = TabPage
+            
+            local cBtnCorner = Instance.new("UICorner")
+            cBtnCorner.CornerRadius = UDim.new(0, 4)
+            cBtnCorner.Parent = CustomBtn
+            
+            CustomBtn.MouseButton1Click:Connect(btnConfig.Callback)
+        end
+        
+        return tabEngine
+    end
+    return windowEngine
+end
+
+-- ====================================================================
+-- 2. เริ่มทำงานหน้าต่างเมนูหลักของ NACK HUB (ULTIMATE)
+-- ====================================================================
+local Window = OrionLib:MakeWindow({Name = "Nack TD Hub (Ultimate PC System)"})
+
+-- 3. ประกาศตัวแปรเน็ตเวิร์กและอีเวนต์ภายในเกมทั้งหมด
 local GamePlayEvents = ReplicatedStorage:WaitForChild("Events"):WaitForChild("Remote"):WaitForChild("GamePlay")
 local RemoteFunctionFolder = ReplicatedStorage:WaitForChild("Events"):WaitForChild("RemoteFunction")
 local FunctionRemoteFolder = ReplicatedStorage:WaitForChild("Functions"):WaitForChild("Remote")
@@ -67,7 +281,7 @@ local PlaceUnit = GamePlayEvents:WaitForChild("RequestPlaceUnit")
 local UpgradeUnit = GamePlayEvents:WaitForChild("RequestUpgradeUnit")
 local GetUnitData = RemoteFunctionFolder:WaitForChild("GetUnitData")
 
--- 4. สวิตช์และฟังก์ชันการดักจับข้อมูล (State Management)
+-- 4. ระบบจัดการข้อมูล (State Management)
 _G.UltimateFarm = false
 _G.AutoReplay = false
 _G.SpyEnabled = true
@@ -160,13 +374,9 @@ task.spawn(function()
 end)
 
 -- --------------------------------------------------------------------
---  TAB 1: AUTO FARM & UTILITIES
+--  TAB 1: AUTO FARM SYSTEMS
 -- --------------------------------------------------------------------
-local FarmTab = Window:MakeTab({
-    Name = "Auto Farm",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false
-})
+local FarmTab = Window:MakeTab({Name = "Auto Farm"})
 
 FarmTab:AddToggle({
     Name = "เปิดใช้งานระบบฟาร์มตามไทม์ไลน์",
@@ -197,7 +407,7 @@ FarmTab:AddToggle({
                     end
                 end)
 
-                -- STEP 1: วาง Wizard King ตัวที่ 1 (1400)
+                -- STEP 1: Wizard King 1 (1400)
                 if not _G.UltimateFarm then return end
                 repeat task.wait(0.5) until getMyCash() >= 1400 or not _G.UltimateFarm
                 if _G.UltimateFarm then
@@ -211,7 +421,7 @@ FarmTab:AddToggle({
                     if LastPlacedUUID and GetUnitData then GetUnitData:InvokeServer(LastPlacedUUID) end
                 end
 
-                -- STEP 2: วาง Wizard King ตัวที่ 2 (1400)
+                -- STEP 2: Wizard King 2 (1400)
                 if not _G.UltimateFarm then return end
                 repeat task.wait(0.5) until getMyCash() >= 1400 or not _G.UltimateFarm
                 if _G.UltimateFarm then
@@ -225,7 +435,7 @@ FarmTab:AddToggle({
                     if LastPlacedUUID and GetUnitData then GetUnitData:InvokeServer(LastPlacedUUID) end
                 end
 
-                -- STEP 3: วาง Vagato ตัวที่ 1 (680) + อัปเกรดรวดเดียว 3 ขั้น
+                -- STEP 3: Vagato 1 (680) + อัปเกรด 3 ขั้น
                 if not _G.UltimateFarm then return end
                 repeat task.wait(0.5) until getMyCash() >= 680 or not _G.UltimateFarm
                 local Vagato1_UUID = nil
@@ -252,7 +462,7 @@ FarmTab:AddToggle({
                     end
                 end
 
-                -- STEP 4: วาง Vagato ตัวที่ 2 (680) + อัปเกรดรวดเดียว 2 ขั้น
+                -- STEP 4: Vagato 2 (680) + อัปเกรด 2 ขั้น
                 if not _G.UltimateFarm then return end
                 repeat task.wait(0.5) until getMyCash() >= 680 or not _G.UltimateFarm
                 local Vagato2_UUID = nil
@@ -285,7 +495,7 @@ FarmTab:AddToggle({
 })
 
 FarmTab:AddToggle({
-    Name = "เปิดระบบ Auto Replay (เริ่มเกมใหม่เมื่อจบแมตช์)",
+    Name = "เปิดระบบ Auto Replay (เริ่มใหม่เมื่อจบแมตช์)",
     Default = false,
     Callback = function(Value)
         _G.AutoReplay = Value
@@ -293,13 +503,9 @@ FarmTab:AddToggle({
 })
 
 -- --------------------------------------------------------------------
---  TAB 2: EASY SPY
+--  TAB 2: REMOTE SPY
 -- --------------------------------------------------------------------
-local SpyTab = Window:MakeTab({
-    Name = "ส่องรีโมท (Easy Spy)",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false
-})
+local SpyTab = Window:MakeTab({Name = "ส่องรีโมท (Easy Spy)"})
 
 SpyTab:AddToggle({
     Name = "เปิดระบบดักฟัง Remote",
