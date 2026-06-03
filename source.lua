@@ -1,1 +1,274 @@
+-- ====================================================================
+--  NACK TD HUB - ULTIMATE ALL-IN-ONE (FIXED UI + MACRO FARM + EASY SPY)
+-- ====================================================================
 
+-- 1. ระบบเช็คและป้องกัน UI ล่ม (Fallback Anti-Nil Runtime)
+local OrionLib = nil
+local loadSuccess = pcall(function()
+    OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Orion/main/source'))()
+end)
+
+if not loadSuccess or not OrionLib then
+    warn("[Nack Hub] ลิงก์หลักหน่วง ระบบสลับไปใช้ลิงก์สำรองอัตโนมัติ...")
+    OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/jensonhirst/OSM/main/TonguriHub/Source/Orion.lua'))()
+end
+
+-- 2. สร้างหน้าต่างเมนูหลัก
+local Window = OrionLib:MakeWindow({
+    Name = "Nack TD Hub (Ultimate Edition)", 
+    HidePremium = false, 
+    SaveConfig = true, 
+    ConfigFolder = "NackTD_Ultimate"
+})
+
+-- 3. การประกาศตัวแปรระบบและเน็ตเวิร์กของเกม
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local GamePlayEvents = ReplicatedStorage:WaitForChild("Events"):WaitForChild("Remote"):WaitForChild("GamePlay")
+local RemoteFunctionFolder = ReplicatedStorage:WaitForChild("Events"):WaitForChild("RemoteFunction")
+local FunctionRemoteFolder = ReplicatedStorage:WaitForChild("Functions"):WaitForChild("Remote")
+
+local VotePlayAgain = GamePlayEvents:WaitForChild("RequestVotePlayAgain")
+local VoteStart = GamePlayEvents:WaitForChild("Vote_StartGame")
+local CheckHotbar = FunctionRemoteFolder:WaitForChild("CheckHotbarUnlocks")
+local SelectSlot = GamePlayEvents:WaitForChild("RequestSelectSlot")
+local DeselectSlot = GamePlayEvents:WaitForChild("RequestDeselectSlot")
+local PlaceUnit = GamePlayEvents:WaitForChild("RequestPlaceUnit")
+local UpgradeUnit = GamePlayEvents:WaitForChild("RequestUpgradeUnit")
+local GetUnitData = RemoteFunctionFolder:WaitForChild("GetUnitData")
+
+-- 4. สวิตช์และฟังก์ชันการดักจับข้อมูล (State Management)
+_G.UltimateFarm = false
+_G.SpyEnabled = true
+local LastCapturedCode = "-- ยังไม่มีการยิงรีโมทในเกม --"
+local LastPlacedUUID = nil
+
+-- ดักจับ UUID ยูนิตที่แน็ควางล่าสุดเพื่อเอาไปใช้อัปเกรดแบบล็อกตัว
+local WorkspaceUnits = game.Workspace:WaitForChild("Units", 5) or game.Workspace
+WorkspaceUnits.ChildAdded:Connect(function(child)
+    if _G.UltimateFarm then
+        task.wait(0.3)
+        pcall(function()
+            if child:FindFirstChild("Owner") and child.Owner.Value == LocalPlayer.Name then
+                if child.Name:match("%-") then
+                    LastPlacedUUID = child.Name
+                end
+            end
+        end)
+    end
+end)
+
+-- ฟังก์ชันเช็คเงินสดในเกม
+local function getMyCash()
+    local GamePlayClient = LocalPlayer:FindFirstChild("GamePlayClient")
+    if GamePlayClient then
+        for _, v in pairs(GamePlayClient:GetChildren()) do
+            if v.Name == "Cash" or v.Name == "Money" or v.Name == "Gold" or v.Name == "Coins" or v:IsA("IntValue") or v:IsA("NumberValue") then
+                return v.Value
+            end
+        end
+    end
+    return 0
+end
+
+-- ฟังก์ชันแปลงอาร์กิวเมนต์ของระบบ Easy Spy
+local function formatArgsToLua(args)
+    local str = "local args = {\n"
+    for i, v in ipairs(args) do
+        if typeof(v) == "Vector3" then
+            str = str .. string.format("    [%d] = Vector3.new(%.3f, %.3f, %.3f),\n", i, v.X, v.Y, v.Z)
+        elseif typeof(v) == "string" then
+            str = str .. string.format("    [%d] = \"%s\",\n", i, v)
+        else
+            str = str .. string.format("    [%d] = %s,\n", i, tostring(v))
+        end
+    end
+    str = str .. "}\n"
+    return str
+end
+
+-- ระบบ Hook ดักจับรีโมทหลังบ้านสำหรับ Easy Spy
+local OldNamecall; OldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local Method = getnamecallmethod()
+    local Args = {...}
+    if _G.SpyEnabled and (Method == "FireServer" or Method == "InvokeServer") then
+        if self:IsDescendantOf(GamePlayEvents) or self.Name:match("GamePlay") or self.Name:match("Unit") then
+            local formattedArgs = formatArgsToLua(Args)
+            LastCapturedCode = formattedArgs .. string.format("game:%s:%s(unpack(args))", self:GetFullName(), Method)
+            pcall(function()
+                if _G.CodeParagraph then
+                    _G.CodeParagraph:Set(LastCapturedCode)
+                end
+            end)
+        end
+    end
+    return OldNamecall(self, ...)
+end)
+
+-- --------------------------------------------------------------------
+--  TAB 1: AUTO FARM (ไทม์ไลน์จริง ลำดับขั้นสมบูรณ์)
+-- --------------------------------------------------------------------
+local FarmTab = Window:MakeTab({
+    Name = "Auto Farm",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+FarmTab:AddToggle({
+    Name = "เปิดใช้งานระบบฟาร์มตามไทม์ไลน์",
+    Default = false,
+    Callback = function(Value)
+        _G.UltimateFarm = Value
+        
+        if _G.UltimateFarm then
+            task.spawn(function()
+                print("[บอท] เริ่มระบบออโต้ฟาร์ม...")
+                LastPlacedUUID = nil
+                
+                -- เริ่มแมตช์และยืนยันสิทธิ์ตามล็อก
+                if VotePlayAgain then VotePlayAgain:FireServer() end
+                task.wait(0.2)
+                if CheckHotbar then CheckHotbar:InvokeServer() end
+                task.wait(0.5)
+                if VoteStart then VoteStart:FireServer() end
+                task.wait(0.2)
+                if CheckHotbar then CheckHotbar:InvokeServer() end
+                
+                task.wait(3) -- รอระบบแผนที่เซ็ตตัว
+                
+                -- ลูปเปิดระบบกดข้าม Wave อัตโนมัติเบื้องหลัง
+                task.spawn(function()
+                    while _G.UltimateFarm do
+                        local SkipRemote = GamePlayEvents:FindFirstChild("RequestSkipWave") or GamePlayEvents:FindFirstChild("SkipWave")
+                        if SkipRemote then SkipRemote:FireServer() end
+                        task.wait(2)
+                    end
+                end)
+
+                -- STEP 1: วาง Wizard King ตัวที่ 1 (1400)
+                if not _G.UltimateFarm then return end
+                repeat task.wait(0.5) until getMyCash() >= 1400 or not _G.UltimateFarm
+                if _G.UltimateFarm then
+                    SelectSlot:FireServer("Unit1")
+                    task.wait(0.1)
+                    LastPlacedUUID = nil
+                    PlaceUnit:FireServer("Wizard King_1", Vector3.new(-428.727, 172.588, -68.281), "Unit1", 0)
+                    task.wait(0.1)
+                    DeselectSlot:FireServer()
+                    repeat task.wait(0.1) until LastPlacedUUID or not _G.UltimateFarm
+                    if LastPlacedUUID and GetUnitData then GetUnitData:InvokeServer(LastPlacedUUID) end
+                end
+
+                -- STEP 2: วาง Wizard King ตัวที่ 2 (1400)
+                if not _G.UltimateFarm then return end
+                repeat task.wait(0.5) until getMyCash() >= 1400 or not _G.UltimateFarm
+                if _G.UltimateFarm then
+                    SelectSlot:FireServer("Unit1")
+                    task.wait(0.1)
+                    LastPlacedUUID = nil
+                    PlaceUnit:FireServer("Wizard King_1", Vector3.new(-427.816, 172.588, -124.560), "Unit1", 0)
+                    task.wait(0.1)
+                    DeselectSlot:FireServer()
+                    repeat task.wait(0.1) until LastPlacedUUID or not _G.UltimateFarm
+                    if LastPlacedUUID and GetUnitData then GetUnitData:InvokeServer(LastPlacedUUID) end
+                end
+
+                -- STEP 3: วาง Vagato ตัวที่ 1 (680) + อัปเกรดรวดเดียว 3 ขั้น
+                if not _G.UltimateFarm then return end
+                repeat task.wait(0.5) until getMyCash() >= 680 or not _G.UltimateFarm
+                local Vagato1_UUID = nil
+                if _G.UltimateFarm then
+                    SelectSlot:FireServer("Unit2")
+                    task.wait(0.1)
+                    LastPlacedUUID = nil
+                    PlaceUnit:FireServer("Vagato_1", Vector3.new(-388.847, 178.081, -62.696), "Unit2", 0)
+                    task.wait(0.1)
+                    DeselectSlot:FireServer()
+                    repeat task.wait(0.1) until LastPlacedUUID or not _G.UltimateFarm
+                    Vagato1_UUID = LastPlacedUUID
+                    if Vagato1_UUID and GetUnitData then GetUnitData:InvokeServer(Vagato1_UUID) end
+                end
+
+                -- อัปเกรด Vagato ตัวที่ 1 ขั้น 1-3 (420 -> 520 -> 640)
+                local costs = {420, 520, 640}
+                for i, cost in ipairs(costs) do
+                    if not _G.UltimateFarm or not Vagato1_UUID then break end
+                    repeat task.wait(0.3) until getMyCash() >= cost or not _G.UltimateFarm
+                    if _G.UltimateFarm then
+                        if GetUnitData then GetUnitData:InvokeServer(Vagato1_UUID) end
+                        task.wait(0.1)
+                        UpgradeUnit:FireServer(Vagato1_UUID)
+                    end
+                end
+
+                -- STEP 4: วาง Vagato ตัวที่ 2 (680) + อัปเกรดรวดเดียว 2 ขั้น
+                if not _G.UltimateFarm then return end
+                repeat task.wait(0.5) until getMyCash() >= 680 or not _G.UltimateFarm
+                local Vagato2_UUID = nil
+                if _G.UltimateFarm then
+                    SelectSlot:FireServer("Unit2")
+                    task.wait(0.1)
+                    LastPlacedUUID = nil
+                    PlaceUnit:FireServer("Vagato_1", Vector3.new(-379.511, 178.093, -62.681), "Unit2", 0)
+                    task.wait(0.1)
+                    DeselectSlot:FireServer()
+                    repeat task.wait(0.1) until LastPlacedUUID or not _G.UltimateFarm
+                    Vagato2_UUID = LastPlacedUUID
+                    if Vagato2_UUID and GetUnitData then GetUnitData:InvokeServer(Vagato2_UUID) end
+                end
+
+                -- อัปเกรด Vagato ตัวที่ 2 ขั้น 1-2 (420 -> 520)
+                local costs2 = {420, 520}
+                for i, cost in ipairs(costs2) do
+                    if not _G.UltimateFarm or not Vagato2_UUID then break end
+                    repeat task.wait(0.3) until getMyCash() >= cost or not _G.UltimateFarm
+                    if _G.UltimateFarm then
+                        if GetUnitData then GetUnitData:InvokeServer(Vagato2_UUID) end
+                        task.wait(0.1)
+                        UpgradeUnit:FireServer(Vagato2_UUID)
+                    end
+                end
+                print("[บอท] ทำงานเสร็จสิ้นตามกระบวนการฟาร์มทั้งหมดแล้วครับแน็ค!")
+            end)
+        end
+    end    
+})
+
+-- --------------------------------------------------------------------
+--  TAB 2: EASY SPY (คลิกเดียวคัดลอกซอร์สโค้ด)
+-- --------------------------------------------------------------------
+local SpyTab = Window:MakeTab({
+    Name = "ส่องรีโมท (Easy Spy)",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+SpyTab:AddToggle({
+    Name = "เปิดระบบดักฟัง Remote",
+    Default = true,
+    Callback = function(Value)
+        _G.SpyEnabled = Value
+    end    
+})
+
+_G.CodeParagraph = SpyTab:AddParagraph("สคริปต์ที่สกัดได้ล่าสุด:", LastCapturedCode)
+
+SpyTab:AddButton({
+    Name = "📋 กดคัดลอกโค้ดนี้ไปใช้งาน (Copy to Clipboard)",
+    Callback = function()
+        if setclipboard then
+            setclipboard(LastCapturedCode)
+            OrionLib:MakeNotification({
+                Name = "Nack TD Spy",
+                Content = "คัดลอกโค้ดลง Clipboard เรียบร้อยแล้ว!",
+                Time = 2
+            })
+        else
+            warn("Executor ของแน็คไม่รองรับคำสั่ง setclipboard")
+        end
+    end
+})
+
+OrionLib:Init()
