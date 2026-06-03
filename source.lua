@@ -1,7 +1,13 @@
 -- ====================================================================
---  NACK TD HUB - OFFICIAL SOURCE (POTASSIUM COMPATIBLE FIXED)
+--  NACK TD HUB - OFFICIAL SOURCE (POTASSIUM ULTRA-STABLE)
 -- ====================================================================
--- GitHub: https://raw.githubusercontent.com/nxdklx465/Nack-TD-Scripts/refs/heads/main/source.lua
+-- GitHub URL: https://raw.githubusercontent.com/nxdklx465/Nack-TD-Scripts/refs/heads/main/source.lua
+
+-- รอระบบเครือข่ายของ Potassium และตัวเกมเซ็ตตัวสักครู่ ป้องกัน HTTP ล่ม
+if not game:IsLoaded() then 
+    game.Loaded:Wait() 
+end
+task.wait(1)
 
 -- 1. ระบบค้นหาลิงก์ UI สำรองอัตโนมัติ 4 ชั้น (Multi-Link Bypass)
 local OrionLib = nil
@@ -17,22 +23,23 @@ for i, url in ipairs(UI_URLs) do
         return loadstring(game:HttpGet(url))()
     end)
     
-    if loadSuccess and result then
+    -- ตรวจสอบว่าโหลดสำเร็จและได้ Object UI กลับมาจริง ๆ (ไม่ใช่ String ข้อความเอเรอร์ 404)
+    if loadSuccess and typeof(result) == "table" and result.MakeWindow then
         OrionLib = result
         print("[Nack Hub] โหลดอินเตอร์เฟสสำเร็จจากคลังสำรองที่: " .. tostring(i))
         break
     else
-        warn("[Nack Hub Warning] ลิงก์ที่ " .. tostring(i) .. " ขัดข้อง กำลังลองลิงก์ถัดไป...")
+        warn("[Nack Hub Warning] ลิงก์ที่ " .. tostring(i) .. " มีปัญหา กำลังข้ามไปลิงก์ถัดไป...")
     end
-    task.wait(0.1)
+    task.wait(0.2)
 end
 
--- ป้องกันสคริปต์หลุดทำงานถ้าเน็ตเวิร์กหลุดจริง ๆ
+-- ระบบป้องกันกรณีเน็ตเวิร์กหลุดขั้นรุนแรง
 if not OrionLib then
-    return warn("[Nack Hub Error] ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ UI ได้ กรุณาลองใหม่อีกครั้งใน Potassium")
+    return warn("[Nack Hub Error] ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ UI ได้ในขณะนี้ กรุณาลองรันใหม่อีกครั้ง")
 end
 
--- 2. สร้างหน้าต่างเมนูหลัก (บรรทัดที่ 18 เดิม ปลอดภัย 100% แล้ว)
+-- 2. สร้างหน้าต่างเมนูหลัก
 local Window = OrionLib:MakeWindow({
     Name = "Nack TD Hub (Ultimate Edition)", 
     HidePremium = false, 
