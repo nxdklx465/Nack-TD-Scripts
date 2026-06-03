@@ -1,8 +1,9 @@
 -- ====================================================================
---  NACK TD HUB - ULTIMATE ALL-IN-ONE (FIXED UI + MACRO FARM + EASY SPY)
+--  NACK TD HUB - OFFICIAL SOURCE (WITH AUTO REPLAY TOGGLE)
 -- ====================================================================
+-- GitHub: https://raw.githubusercontent.com/nxdklx465/Nack-TD-Scripts/refs/heads/main/source.lua
 
--- 1. ระบบเช็คและป้องกัน UI ล่ม (Fallback Anti-Nil Runtime)
+-- 1. ระบบดักจับและป้องกัน UI ล่ม (Fallback Anti-Nil Runtime)
 local OrionLib = nil
 local loadSuccess = pcall(function()
     OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Orion/main/source'))()
@@ -41,11 +42,12 @@ local GetUnitData = RemoteFunctionFolder:WaitForChild("GetUnitData")
 
 -- 4. สวิตช์และฟังก์ชันการดักจับข้อมูล (State Management)
 _G.UltimateFarm = false
+_G.AutoReplay = false
 _G.SpyEnabled = true
 local LastCapturedCode = "-- ยังไม่มีการยิงรีโมทในเกม --"
 local LastPlacedUUID = nil
 
--- ดักจับ UUID ยูนิตที่แน็ควางล่าสุดเพื่อเอาไปใช้อัปเกรดแบบล็อกตัว
+-- ดักจับ UUID ยูนิตที่แน็ควางล่าสุดเพื่อเอาไปใชัปเกรดแบบล็อกตัว
 local WorkspaceUnits = game.Workspace:WaitForChild("Units", 5) or game.Workspace
 WorkspaceUnits.ChildAdded:Connect(function(child)
     if _G.UltimateFarm then
@@ -107,8 +109,38 @@ local OldNamecall; OldNamecall = hookmetamethod(game, "__namecall", function(sel
     return OldNamecall(self, ...)
 end)
 
+-- 📌 [ระบบเบื้องหลัง] สแกนหน้าจอเมื่อจบเกมเพื่อกด Replay อัตโนมัติ
+task.spawn(function()
+    while task.wait(3) do
+        if _G.AutoReplay then
+            pcall(function()
+                local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+                local isMatchOver = false
+                
+                if PlayerGui then
+                    -- สแกนหา TextLabel ที่แจ้งเตือนการจบเกมบนหน้าจอ UI
+                    for _, v in pairs(PlayerGui:GetDescendants()) do
+                        if v:IsA("TextLabel") and v.Visible then
+                            local txt = v.Text:upper()
+                            if txt:match("DEFEAT") or txt:match("VICTORY") or txt:match("GAME OVER") or txt:match("REWARD") then
+                                isMatchOver = true
+                                break
+                            end
+                        end
+                    end
+                end
+                
+                -- ถ้าพบสถานะจบเกม ให้กดยิงรีโมทเริ่มใหม่ทันที
+                if isMatchOver and VotePlayAgain then
+                    VotePlayAgain:FireServer()
+                end
+            end)
+        end
+    end
+end)
+
 -- --------------------------------------------------------------------
---  TAB 1: AUTO FARM (ไทม์ไลน์จริง ลำดับขั้นสมบูรณ์)
+--  TAB 1: AUTO FARM & UTILITIES
 -- --------------------------------------------------------------------
 local FarmTab = Window:MakeTab({
     Name = "Auto Farm",
@@ -232,6 +264,18 @@ FarmTab:AddToggle({
                 end
                 print("[บอท] ทำงานเสร็จสิ้นตามกระบวนการฟาร์มทั้งหมดแล้วครับแน็ค!")
             end)
+        end
+    end    
+})
+
+-- 📌 ปุ่มติ๊กเปิด/ปิดระบบเริ่มเกมใหม่อัตโนมัติ (ติ๊กเปิดทิ้งไว้ตอนฟาร์มยาว ๆ ได้เลย)
+FarmTab:AddToggle({
+    Name = "เปิดระบบ Auto Replay (เริ่มเกมใหม่เมื่อจบแมตช์)",
+    Default = false,
+    Callback = function(Value)
+        _G.AutoReplay = Value
+        if Value then
+            print("[บอท] เปิดใช้งาน Auto Replay เตรียมพร้อมตรวจจับหน้าจอจบเกม...")
         end
     end    
 })
