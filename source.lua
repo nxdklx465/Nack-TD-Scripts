@@ -1,20 +1,38 @@
 -- ====================================================================
---  NACK TD HUB - OFFICIAL SOURCE (WITH AUTO REPLAY TOGGLE)
+--  NACK TD HUB - OFFICIAL SOURCE (POTASSIUM COMPATIBLE FIXED)
 -- ====================================================================
 -- GitHub: https://raw.githubusercontent.com/nxdklx465/Nack-TD-Scripts/refs/heads/main/source.lua
 
--- 1. ระบบดักจับและป้องกัน UI ล่ม (Fallback Anti-Nil Runtime)
+-- 1. ระบบค้นหาลิงก์ UI สำรองอัตโนมัติ 4 ชั้น (Multi-Link Bypass)
 local OrionLib = nil
-local loadSuccess = pcall(function()
-    OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Orion/main/source'))()
-end)
+local UI_URLs = {
+    "https://raw.githubusercontent.com/shlexware/Orion/main/source",
+    "https://raw.githubusercontent.com/jensonhirst/OSM/main/TonguriHub/Source/Orion.lua",
+    "https://raw.githubusercontent.com/bloodball/-Aimbot-v2/main/orion.lua",
+    "https://raw.githubusercontent.com/oyunfirmasi/Roblox/main/Orion.lua"
+}
 
-if not loadSuccess or not OrionLib then
-    warn("[Nack Hub] ลิงก์หลักหน่วง ระบบสลับไปใช้ลิงก์สำรองอัตโนมัติ...")
-    OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/jensonhirst/OSM/main/TonguriHub/Source/Orion.lua'))()
+for i, url in ipairs(UI_URLs) do
+    local loadSuccess, result = pcall(function()
+        return loadstring(game:HttpGet(url))()
+    end)
+    
+    if loadSuccess and result then
+        OrionLib = result
+        print("[Nack Hub] โหลดอินเตอร์เฟสสำเร็จจากคลังสำรองที่: " .. tostring(i))
+        break
+    else
+        warn("[Nack Hub Warning] ลิงก์ที่ " .. tostring(i) .. " ขัดข้อง กำลังลองลิงก์ถัดไป...")
+    end
+    task.wait(0.1)
 end
 
--- 2. สร้างหน้าต่างเมนูหลัก
+-- ป้องกันสคริปต์หลุดทำงานถ้าเน็ตเวิร์กหลุดจริง ๆ
+if not OrionLib then
+    return warn("[Nack Hub Error] ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ UI ได้ กรุณาลองใหม่อีกครั้งใน Potassium")
+end
+
+-- 2. สร้างหน้าต่างเมนูหลัก (บรรทัดที่ 18 เดิม ปลอดภัย 100% แล้ว)
 local Window = OrionLib:MakeWindow({
     Name = "Nack TD Hub (Ultimate Edition)", 
     HidePremium = false, 
@@ -47,7 +65,7 @@ _G.SpyEnabled = true
 local LastCapturedCode = "-- ยังไม่มีการยิงรีโมทในเกม --"
 local LastPlacedUUID = nil
 
--- ดักจับ UUID ยูนิตที่แน็ควางล่าสุดเพื่อเอาไปใชัปเกรดแบบล็อกตัว
+-- ดักจับ UUID ยูนิตที่วางล่าสุด
 local WorkspaceUnits = game.Workspace:WaitForChild("Units", 5) or game.Workspace
 WorkspaceUnits.ChildAdded:Connect(function(child)
     if _G.UltimateFarm then
@@ -109,7 +127,7 @@ local OldNamecall; OldNamecall = hookmetamethod(game, "__namecall", function(sel
     return OldNamecall(self, ...)
 end)
 
--- 📌 [ระบบเบื้องหลัง] สแกนหน้าจอเมื่อจบเกมเพื่อกด Replay อัตโนมัติ
+-- สแกนหน้าจอเมื่อจบเกมเพื่อกด Replay อัตโนมัติ
 task.spawn(function()
     while task.wait(3) do
         if _G.AutoReplay then
@@ -118,7 +136,6 @@ task.spawn(function()
                 local isMatchOver = false
                 
                 if PlayerGui then
-                    -- สแกนหา TextLabel ที่แจ้งเตือนการจบเกมบนหน้าจอ UI
                     for _, v in pairs(PlayerGui:GetDescendants()) do
                         if v:IsA("TextLabel") and v.Visible then
                             local txt = v.Text:upper()
@@ -130,7 +147,6 @@ task.spawn(function()
                     end
                 end
                 
-                -- ถ้าพบสถานะจบเกม ให้กดยิงรีโมทเริ่มใหม่ทันที
                 if isMatchOver and VotePlayAgain then
                     VotePlayAgain:FireServer()
                 end
@@ -159,7 +175,6 @@ FarmTab:AddToggle({
                 print("[บอท] เริ่มระบบออโต้ฟาร์ม...")
                 LastPlacedUUID = nil
                 
-                -- เริ่มแมตช์และยืนยันสิทธิ์ตามล็อก
                 if VotePlayAgain then VotePlayAgain:FireServer() end
                 task.wait(0.2)
                 if CheckHotbar then CheckHotbar:InvokeServer() end
@@ -168,9 +183,8 @@ FarmTab:AddToggle({
                 task.wait(0.2)
                 if CheckHotbar then CheckHotbar:InvokeServer() end
                 
-                task.wait(3) -- รอระบบแผนที่เซ็ตตัว
+                task.wait(3)
                 
-                -- ลูปเปิดระบบกดข้าม Wave อัตโนมัติเบื้องหลัง
                 task.spawn(function()
                     while _G.UltimateFarm do
                         local SkipRemote = GamePlayEvents:FindFirstChild("RequestSkipWave") or GamePlayEvents:FindFirstChild("SkipWave")
@@ -223,7 +237,7 @@ FarmTab:AddToggle({
                     if Vagato1_UUID and GetUnitData then GetUnitData:InvokeServer(Vagato1_UUID) end
                 end
 
-                -- อัปเกรด Vagato ตัวที่ 1 ขั้น 1-3 (420 -> 520 -> 640)
+                -- อัปเกรด Vagato ตัวที่ 1 ขั้น 1-3
                 local costs = {420, 520, 640}
                 for i, cost in ipairs(costs) do
                     if not _G.UltimateFarm or not Vagato1_UUID then break end
@@ -251,7 +265,7 @@ FarmTab:AddToggle({
                     if Vagato2_UUID and GetUnitData then GetUnitData:InvokeServer(Vagato2_UUID) end
                 end
 
-                -- อัปเกรด Vagato ตัวที่ 2 ขั้น 1-2 (420 -> 520)
+                -- อัปเกรด Vagato ตัวที่ 2 ขั้น 1-2
                 local costs2 = {420, 520}
                 for i, cost in ipairs(costs2) do
                     if not _G.UltimateFarm or not Vagato2_UUID then break end
@@ -268,20 +282,16 @@ FarmTab:AddToggle({
     end    
 })
 
--- 📌 ปุ่มติ๊กเปิด/ปิดระบบเริ่มเกมใหม่อัตโนมัติ (ติ๊กเปิดทิ้งไว้ตอนฟาร์มยาว ๆ ได้เลย)
 FarmTab:AddToggle({
     Name = "เปิดระบบ Auto Replay (เริ่มเกมใหม่เมื่อจบแมตช์)",
     Default = false,
     Callback = function(Value)
         _G.AutoReplay = Value
-        if Value then
-            print("[บอท] เปิดใช้งาน Auto Replay เตรียมพร้อมตรวจจับหน้าจอจบเกม...")
-        end
     end    
 })
 
 -- --------------------------------------------------------------------
---  TAB 2: EASY SPY (คลิกเดียวคัดลอกซอร์สโค้ด)
+--  TAB 2: EASY SPY
 -- --------------------------------------------------------------------
 local SpyTab = Window:MakeTab({
     Name = "ส่องรีโมท (Easy Spy)",
@@ -309,8 +319,6 @@ SpyTab:AddButton({
                 Content = "คัดลอกโค้ดลง Clipboard เรียบร้อยแล้ว!",
                 Time = 2
             })
-        else
-            warn("Executor ของแน็คไม่รองรับคำสั่ง setclipboard")
         end
     end
 })
